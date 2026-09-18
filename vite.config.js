@@ -9,7 +9,6 @@ function emitPlayweftPackage(base, outDir) {
   const uploadRoot = base === "/" ? outDir : resolve(outDir, "..");
   const files = [
     "playweft.json",
-    "game.lua",
     "icon.svg",
   ];
   return {

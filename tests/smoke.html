@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8" /><title>smoke</title></head>
+<body>
+  <div id="app"></div>
+  <pre id="out"></pre>
+  <script type="module">
+    import {
+      backToLobby, createSession, intent, join, startSelected, tick, view,
+    } from "../src/party/session.mjs";
+    import { renderApp, updateLive } from "../src/ui/render.mjs";
+
+    const root = document.getElementById("app");
+    const failures = [];
+    const seen = new Set();
+    let gridraceSpectators = 0;
+    const check = (label, condition) => { if (!condition) failures.push(label); };
+
+    const session = createSession({ rng: () => 0.5 });
+    for (let i = 0; i < 6; i += 1) join(session, { source: `pad:${i}`, label: `Pad ${i}` });
+
+    // Lobby renders and lists every game.
+    let model = view(session, 0);
+    renderApp(root, model);
+    check("lobby heading", root.innerHTML.includes("较强大脑"));
+    check("lobby menu", root.innerHTML.includes("信号抢点") && root.innerHTML.includes("数字方格"));
+    check("lobby seats", root.innerHTML.includes("玩家 6"));
+
+    for (const [index, id] of [["reaction"], ["stroop"], ["recall"], ["gridrace"]].entries()) {
+      backToLobby(session);
+      session.selection = Number(index);
+      check(`start ${id}`, startSelected(session, 0) === true);
+      let now = 0;
+      let guard = 0;
+      while (session.phase === "playing" && guard < 600) {
+        guard += 1;
+        model = view(session, now);
+        seen.add(`${model.game.id}:${model.game.phase}`);
+        if (model.game.id === "gridrace" && model.game.phase === "race") {
+          gridraceSpectators = model.seats.filter((seat) => seat.spectator).length;
+        }
+        try {
+          renderApp(root, model);
+          updateLive(root, model);
+        } catch (error) {
+          failures.push(`render ${model.game.id}:${model.game.phase} ${error.message}`);
+          break;
+        }
+        if (model.game.id === "reaction" && model.game.phase === "signal") {
+          intent(session, { seatId: session.participants[0], button: "a" }, now);
+        }
+        if (["stroop", "recall"].includes(model.game.id) && model.game.phase === "question") {
+          intent(session, { seatId: session.participants[0], button: "a" }, now);
+        }
+        if (model.game.id === "recall" && model.game.phase === "choose") {
+          intent(session, { seatId: session.participants[1], button: "b" }, now);
+        }
+        if (model.game.id === "gridrace" && model.game.phase === "race") {
+          intent(session, { seatId: session.participants[0], button: "down" }, now);
+          intent(session, { seatId: session.participants[0], button: "a" }, now);
+        }
+        now += 700;
+        tick(session, now);
+      }
+      check(`${id} finished`, session.phase === "results");
+      renderApp(root, view(session, now));
+      check(`${id} results screen`, root.innerHTML.includes("本局结果"));
+    }
+
+    const expected = [
+      "reaction:waiting", "reaction:signal", "reaction:scored",
+      "stroop:question", "stroop:feedback",
+      "recall:flash", "recall:choose", "recall:feedback",
+      "gridrace:ready", "gridrace:race", "gridrace:scored",
+    ];
+    for (const phase of expected) check(`phase ${phase}`, seen.has(phase));
+    check("spectators excluded from gridrace", gridraceSpectators === 2);
+
+    document.getElementById("out").textContent = JSON.stringify({
+      ok: failures.length === 0,
+      failures,
+      phases: [...seen].sort(),
+    }, null, 2);
+    document.title = failures.length === 0 ? "SMOKE OK" : `SMOKE FAIL ${failures.length}`;
+  </script>
+</body>
+</html>

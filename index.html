@@ -4,58 +4,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#f4f2fb" />
+  <meta name="theme-color" content="#14121f" />
   <title>较强大脑</title>
   <link rel="stylesheet" href="./src/styles/main.css" />
 </head>
 
 <body>
-  <section id="start-screen" class="start-screen" aria-labelledby="start-title">
-    <img class="start-icon" src="./icon.svg" alt="" width="96" height="96" />
-    <p class="eyebrow">SUPERIOR BRAIN</p>
-    <h1 id="start-title">较强大脑</h1>
-    <p class="start-description">记忆与推理的较量。玩法正在设计中。</p>
-    <div class="mode-options" role="group" aria-label="开始游戏">
-      <button id="start-button" type="button" disabled><strong>开始</strong><small>进入游戏界面骨架</small></button>
-    </div>
-    <p id="start-status" class="start-status" aria-live="polite">正在连接…</p>
-  </section>
-
-  <main id="game" class="game-shell" hidden>
-    <header class="game-header">
-      <button class="back-button" type="button" aria-label="返回首页" title="返回首页" onclick="location.reload()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-      </button>
-      <h1>较强大脑</h1>
-    </header>
-    <div class="game-content">
-      <div class="game-meta" aria-label="游戏状态">
-        <span id="mode-label">单人模式</span>
-        <span class="meta-divider" aria-hidden="true"></span>
-        <span id="round-label">等待开始</span>
-      </div>
-
-      <p id="status" class="status" aria-live="polite">准备开始…</p>
-
-      <section class="content-card" aria-labelledby="board-title">
-        <div class="card-heading">
-          <span class="heading-icon" aria-hidden="true">◇</span>
-          <div>
-            <h2 id="board-title">玩法待实现</h2>
-            <p>这里将放置题目、回合与计分界面。</p>
-          </div>
-        </div>
-        <div class="board-placeholder" aria-hidden="true">
-          <span>待</span><span>填</span><span>内</span><span>容</span>
-        </div>
-      </section>
-
-      <section id="notice" class="notice" hidden></section>
-
-      <footer>骨架阶段：仅包含桥接、构建与房间大厅。</footer>
-    </div>
-  </main>
-
+  <main id="app" class="app"></main>
   <script type="module" src="./src/main.js"></script>
 </body>
 

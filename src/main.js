@@ -1,19 +1,24 @@
-const $ = (selector) => document.querySelector(selector);
-const ui = {
-  startScreen: $("#start-screen"),
-  startButton: $("#start-button"),
-  startStatus: $("#start-status"),
-  game: $("#game"),
-  mode: $("#mode-label"),
-  round: $("#round-label"),
-  status: $("#status"),
-  notice: $("#notice"),
-};
+import { createInputHub } from "./input/input-hub.mjs";
+import {
+  createSession,
+  intent,
+  join,
+  leave,
+  selectGame,
+  tick,
+  touchStart,
+  view,
+} from "./party/session.mjs";
+import { renderApp, setBridgeLabel, updateLive } from "./ui/render.mjs";
 
-let port;
-let context;
-let roomState;
-const pending = new Map();
+const root = document.getElementById("app");
+const session = createSession({ maxSeats: 8 });
+const hub = createInputHub({ maxSeats: 8, window, navigator });
+
+let bridgeLabel = "本地试玩 · 未连接 Playweft";
+let lastSignature = "";
+
+/* ---------- Playweft bridge (solo package) ---------- */
 
 function announceReady() {
   window.parent.postMessage({ type: "playweft:bridge-ready", version: 1 }, "*");
@@ -24,89 +29,104 @@ announceReady();
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent || event.data?.type !== "playweft:bridge")
     return;
-  const [candidate] = event.ports;
-  if (!candidate) return;
-  port = candidate;
+  const [port] = event.ports;
+  if (!port) return;
   window.clearInterval(bridgeProbe);
-  port.onmessage = onMessage;
-  port.start();
-  rpc("game.initialize")
-    .then(startPlayweft)
-    .catch((error) => {
-      ui.startStatus.textContent = error.message;
-    });
-});
 
-function rpc(method, params) {
-  if (!port) return Promise.reject(new Error("Playweft bridge is unavailable"));
-  const id = crypto.randomUUID();
-  return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    port.postMessage({
-      jsonrpc: "2.0",
-      id,
-      method,
-      ...(params === undefined ? {} : { params }),
+  const pending = new Map();
+  const rpc = (method, params) =>
+    new Promise((resolve, reject) => {
+      const id = crypto.randomUUID();
+      pending.set(id, { resolve, reject });
+      port.postMessage({
+        jsonrpc: "2.0",
+        id,
+        method,
+        ...(params === undefined ? {} : { params }),
+      });
     });
-  });
-}
 
-function onMessage(event) {
-  const message = event.data;
-  if (message?.jsonrpc !== "2.0") return;
-  if (Object.hasOwn(message, "id")) {
-    const task = pending.get(message.id);
+  port.onmessage = (message) => {
+    const payload = message.data;
+    if (payload?.jsonrpc !== "2.0" || !Object.hasOwn(payload, "id")) return;
+    const task = pending.get(payload.id);
     if (!task) return;
-    pending.delete(message.id);
-    if (message.error) task.reject(new Error(message.error.message));
-    else task.resolve(message.result);
-    return;
-  }
-  if (message.method === "game.state") {
-    roomState = message.params.state;
-    renderRoom();
-  }
-}
+    pending.delete(payload.id);
+    if (payload.error) task.reject(new Error(payload.error.message));
+    else task.resolve(payload.result);
+  };
+  port.start();
 
-function startPlayweft(initialContext) {
-  context = initialContext;
-  updateStartScreen();
-  if (!ui.game.hidden) renderRoom();
-}
-
-function updateStartScreen() {
-  if (!context) {
-    ui.startStatus.textContent = "正在连接…";
-    ui.startButton.disabled = true;
-    return;
-  }
-  ui.mode.textContent = context.mode === "room" ? "双人房间" : "单人模式";
-  ui.startStatus.textContent =
-    context.mode === "room" ? "已连接，等待房间同步。" : "已连接，可以进入玩法界面。";
-  ui.startButton.disabled = false;
-}
-
-function renderRoom() {
-  if (!roomState) return;
-  ui.round.textContent = roomState.round ? `第 ${roomState.round} 轮` : "大厅";
-  ui.status.textContent =
-    roomState.phase === "lobby"
-      ? "房间已就绪，玩法尚未实现。"
-      : `房间状态：${roomState.phase}`;
-}
-
-ui.startButton.addEventListener("click", () => {
-  if (ui.startButton.disabled) return;
-  ui.startScreen.hidden = true;
-  ui.game.hidden = false;
-  ui.status.textContent = "玩法尚未实现，这里是游戏界面骨架。";
-  ui.notice.hidden = false;
-  ui.notice.textContent = "下一步：在 src/games/ 下实现玩法，并在 public/game.lua 中补齐房间规则。";
-  if (roomState) renderRoom();
+  rpc("game.initialize")
+    .then((context) => {
+      const who = context.player?.name ? ` · ${context.player.name}` : "";
+      bridgeLabel =
+        context.mode === "room"
+          ? `Playweft 房间（本版本只做同屏）${who}`
+          : `Playweft 单人${who}`;
+      lastSignature = "";
+    })
+    .catch((error) => {
+      bridgeLabel = error.message;
+      lastSignature = "";
+    });
 });
 
-// Static previews can start locally; embedded games wait for their bridge.
-if (window.parent === window) {
-  context = { mode: "solo" };
-  updateStartScreen();
+/* ---------- pointer input ---------- */
+
+function joinTouchSeat() {
+  const seatId = join(session, { source: "touch", label: "触屏" });
+  if (seatId) hub.bind(seatId, "touch");
 }
+
+root.addEventListener("pointerdown", (event) => {
+  if (event.target.closest("[data-join]")) joinTouchSeat();
+});
+
+root.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-button], [data-select]");
+  if (!target) return;
+  if (target.dataset.select !== undefined) {
+    const index = Number(target.dataset.select);
+    const touchSeat = session.seats.find((seat) => seat.source === "touch");
+    if (touchSeat && session.phase === "lobby") touchStart(session, index, performance.now());
+    else selectGame(session, index);
+    return;
+  }
+  hub.touch(target.dataset.button, performance.now());
+});
+
+/* ---------- loop ---------- */
+
+function paint(model) {
+  if (model.signature === lastSignature) return;
+  renderApp(root, model);
+  setBridgeLabel(root, bridgeLabel);
+  lastSignature = model.signature;
+}
+
+function frame(now) {
+  for (const event of hub.poll(now)) {
+    if (event.type === "join") {
+      const seatId = join(session, { source: event.source, label: event.label });
+      if (seatId) hub.bind(seatId, event.source);
+      continue;
+    }
+    if (event.type === "leave") {
+      leave(session, event.seatId);
+      hub.unbind(event.seatId);
+      continue;
+    }
+    intent(session, { seatId: event.seatId, button: event.button }, now);
+  }
+
+  tick(session, now);
+  const model = view(session, now);
+  paint(model);
+  updateLive(root, model);
+  requestAnimationFrame(frame);
+}
+
+// Paint the lobby before the first frame so a stalled rAF never shows a blank app.
+paint(view(session, performance.now()));
+requestAnimationFrame(frame);

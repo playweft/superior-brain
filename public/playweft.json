@@ -2,23 +2,19 @@
   "$schema": "https://play.longern.com/schemas/game-manifest-v1.json",
   "manifest_version": 1,
   "id": "/superior-brain/",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "protocol": { "min": 1, "max": 1 },
   "start_url": "./index.html",
   "name": "Superior Brain",
   "name_localized": { "zh-CN": "较强大脑" },
-  "description": "Memory and reasoning challenges, solo or in a two-player room.",
-  "description_localized": { "zh-CN": "记忆与推理挑战，支持单人练习与双人房间对战。" },
-  "categories": ["puzzle", "party", "strategy"],
+  "description": "Same-screen party brain games for one to eight players on gamepads, keyboard or touch.",
+  "description_localized": { "zh-CN": "同屏聚会小游戏合集：抢答、色字干扰、记忆矩阵与数字方格竞速，支持手柄、键盘和触屏。" },
+  "categories": ["party", "puzzle", "casual"],
   "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }],
-  "background_color": "#f4f2fb",
-  "theme_color": "#262a52",
-  "orientation": "portrait",
+  "background_color": "#14121f",
+  "theme_color": "#8b7bff",
+  "orientation": "any",
   "modes": {
-    "solo": {},
-    "room": {
-      "players": { "min": 2, "max": 2 },
-      "server": { "runtime": "lua", "entry": "./game.lua", "persistence": "durable" }
-    }
+    "solo": {}
   }
 }
